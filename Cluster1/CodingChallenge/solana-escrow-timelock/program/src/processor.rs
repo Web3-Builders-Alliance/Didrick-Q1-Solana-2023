@@ -1,5 +1,6 @@
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    clock::Clock,
     entrypoint::ProgramResult,
     msg,
     program::{invoke, invoke_signed},
@@ -33,7 +34,7 @@ impl Processor {
             }
             EscrowInstruction::ResetTimeLock {} => {
                 msg!("Instruction: ResetTimeLock");
-                Self::process_reset_timelock(accounts, program_id)
+                Self::process_reset_time_lock(accounts, program_id)
             }
             EscrowInstruction::Cancel {} => {
                 msg!("Instruction: Cancel");
@@ -302,6 +303,43 @@ impl Processor {
             .ok_or(EscrowError::AmountOverflow)?; //check that there is no overflow (u64)
         **escrow_account.try_borrow_mut_lamports()? = 0;
         *escrow_account.try_borrow_mut_data()? = &mut [];
+
+        Ok(())
+    }
+
+    /* Way of resetting rather than having to cancel after 1000 seconds*/
+    //write the reset time lock function
+    //must be called by initiator and
+    //load the escrow state
+    //get the clock slot
+    //set the stroed time out to current_slot + 100
+    //set unlock_time to current_slot + 1000
+    fn process_reset_time_lock(accounts: &[AccountInfo], program_id: &Pubkey) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let initializer = next_account_info(account_info_iter)?;
+
+        let slot = Clock::get()?.slot;
+        let unlock_time = slot.checked_add(100).unwrap();
+        let time_out = unlock_time.checked_add(1000).unwrap();
+
+        if !initializer.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let escrow_account = next_account_info(account_info_iter)?;
+
+        if escrow_account.owner != program_id || escrow_account.is_writable == false {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        let escrow_info = &mut Escrow::unpack(&escrow_account.try_borrow_data()?)?;
+
+        if escrow_info.initializer_pubkey != *initializer.key {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        escrow_info.unlock_time = unlock_time;
+        escrow_info.time_out = time_out;
 
         Ok(())
     }

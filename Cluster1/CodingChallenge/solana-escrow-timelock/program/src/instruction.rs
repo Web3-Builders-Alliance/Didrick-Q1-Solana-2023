@@ -160,3 +160,43 @@ pub fn exchange(
 }
 
 //need helper functions for the new instructions
+
+pub fn reset_time_lock(
+    program_id: &Pubkey,
+    initiator: &Pubkey,
+    escrow_account: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let data = EscrowInstruction::ResetTimeLock {}.pack();
+    let accounts = vec![
+        AccountMeta::new(*initiator, true),
+        AccountMeta::new(*escrow_account, false),
+    ];
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    })
+}
+
+pub fn cancel(
+    program_id: &Pubkey,
+    initiator: &Pubkey,
+    temp_token_account: &Pubkey,
+    initializer_token_account: &Pubkey,
+    escrow_account: &Pubkey,
+    token_program: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let data = EscrowInstruction::Cancel {}.pack();
+    let accounts = vec![
+        AccountMeta::new(*initiator, true),
+        AccountMeta::new(*temp_token_account, false),
+        AccountMeta::new_readonly(*initializer_token_account, false),
+        AccountMeta::new(*escrow_account, false),
+        AccountMeta::new_readonly(*token_program, false),
+    ];
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    })
+}

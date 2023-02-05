@@ -16,6 +16,12 @@ pub enum EscrowError {
     /// Amount Overflow
     #[error("Amount Overflow")]
     AmountOverflow,
+    /// Escrow Time Unlock
+    #[error("Escrow Time Unlock")]
+    EscrowTimeUnlock,
+    /// Escrow Time Out
+    #[error("Escrow Time Out")]
+    EscrowTimeOut,
 }
 
 impl From<EscrowError> for ProgramError {
