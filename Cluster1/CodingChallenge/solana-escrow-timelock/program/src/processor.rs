@@ -31,6 +31,14 @@ impl Processor {
                 msg!("Instruction: Exchange");
                 Self::process_exchange(accounts, amount, program_id)
             }
+            EscrowInstruction::ResetTimeLock {} => {
+                msg!("Instruction: ResetTimeLock");
+                Self::process_reset_timelock(accounts, program_id)
+            }
+            EscrowInstruction::Cancel {} => {
+                msg!("Instruction: Cancel");
+                Self::process_cancel(accounts, program_id)
+            }
         }
     }
 
@@ -209,6 +217,89 @@ impl Processor {
             .lamports()
             .checked_add(escrow_account.lamports())
             .ok_or(EscrowError::AmountOverflow)?;
+        **escrow_account.try_borrow_mut_lamports()? = 0; //no money
+        *escrow_account.try_borrow_mut_data()? = &mut []; //no data (the moment this epoch ends, this account is gone! Might not see on block explorer anymore?)
+
+        Ok(())
+    }
+
+    fn process_cancel(accounts: &[AccountInfo], program_id: &Pubkey) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let initializer = next_account_info(account_info_iter)?;
+
+        if !initializer.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let pda_temp_token_account = next_account_info(account_info_iter)?;
+        let initializer_main_account = next_account_info(account_info_iter)?;
+        let initializer_sent_token_account = next_account_info(account_info_iter)?;
+        let escrow_account = next_account_info(account_info_iter)?;
+
+        if escrow_account.owner != program_id || escrow_account.is_writable == false {
+            return Err(ProgramError::IllegalOwner);
+        } //wont need to do this with Anchor (make sure escrow account's owner is the program ID! Make sure it's also writable!)
+
+        let escrow_info = Escrow::unpack(&escrow_account.try_borrow_data()?)?;
+
+        if escrow_info.initializer_pubkey != *initializer.key {
+            //check if initializer pubkey is equal to the one that submitted the transaction
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        let token_program = next_account_info(account_info_iter)?;
+        let pda_account_info = next_account_info(account_info_iter)?;
+        let pda_token_account_info =
+            TokenAccount::unpack(&pda_temp_token_account.try_borrow_data()?)?;
+        let (pda, nonce) = Pubkey::find_program_address(&[b"escrow"], program_id); //nonce is what you get back when you call this "find_PA", need for invoke_signed.
+
+        //transfer tokens back to initializer
+        let transfer_to_initializer_ix = spl_token::instruction::transfer(
+            token_program.key,
+            pda_temp_token_account.key,
+            initializer_sent_token_account.key,
+            &pda,
+            &[&pda],
+            pda_token_account_info.amount,
+        )?;
+        msg!("Calling token program to transfer tokens back to initializer");
+        invoke_signed(
+            &transfer_to_initializer_ix,
+            &[
+                pda_temp_token_account.clone(),
+                initializer_sent_token_account.clone(),
+                pda_account_info.clone(),
+                token_program.clone(),
+            ],
+            &[&[&b"escrow"[..], &[nonce]]], //verifies PDA token account generated/PDA account sent it are correct.
+        )?;
+
+        //close the escrow account
+        let close_escrow_token_acct_ix = spl_token::instruction::close_account(
+            token_program.key, //include program ID anytime you're doing anything with `spl-token`
+            pda_temp_token_account.key,
+            initializer_main_account.key,
+            &pda,
+            &[&pda],
+        )?;
+
+        msg!("Calling token program to close escrow token account");
+        invoke_signed(
+            &close_escrow_token_acct_ix,
+            &[
+                pda_temp_token_account.clone(),
+                initializer_main_account.clone(),
+                pda_account_info.clone(),
+                token_program.clone(),
+            ],
+            &[&[&b"escrow"[..], &[nonce]]],
+        )?;
+
+        msg!("Closing the escrow account...");
+        **initializer.try_borrow_mut_lamports()? = initializer_main_account
+            .lamports()
+            .checked_add(escrow_account.lamports())
+            .ok_or(EscrowError::AmountOverflow)?; //check that there is no overflow (u64)
         **escrow_account.try_borrow_mut_lamports()? = 0;
         *escrow_account.try_borrow_mut_data()? = &mut [];
 

@@ -68,6 +68,8 @@ impl EscrowInstruction {
             1 => Self::Exchange {
                 amount: Self::unpack_amount(rest)?,
             },
+            2 => Self::ResetTimeLock {},
+            3 => Self::Cancel {},
             _ => return Err(InvalidInstruction.into()),
         })
     }
