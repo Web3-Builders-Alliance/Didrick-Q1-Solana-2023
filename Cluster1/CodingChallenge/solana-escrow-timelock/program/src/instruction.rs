@@ -1,5 +1,9 @@
-use solana_program::program_error::ProgramError;
-use std::convert::TryInto;
+use solana_program::{
+    instruction::{AccountMeta, Instruction},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
+use std::{convert::TryInto, mem::size_of};
 
 use crate::error::EscrowError::InvalidInstruction;
 
@@ -78,7 +82,7 @@ impl EscrowInstruction {
     }
 
     fn pack(&self) -> Vec<u8> {
-        let mut buf: Vec<u8> = Vec::with_capacity(size_of::<Self>());
+        let mut buf = Vec::with_capacity(size_of::<Self>());
         match &*self {
             Self::InitEscrow { amount } => {
                 buf.push(0);
@@ -113,6 +117,36 @@ pub fn init_escrow(
         AccountMeta::new(*initiator, true),
         AccountMeta::new(*pda_temp_token_acct, false),
         AccountMeta::new_readonly(*init_token_acct, false),
+        AccountMeta::new(*escrow_account, false),
+        AccountMeta::new_readonly(*token_program, false),
+    ];
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    })
+}
+
+pub fn exchange(
+    program_id: &Pubkey,
+    taker: &Pubkey,
+    taker_token_account: &Pubkey,  //token sending in
+    taker_token_account2: &Pubkey, //token they're recieving
+    temp_token_account: &Pubkey,   //PDA temp token account
+    initializer_token_account: &Pubkey,
+    initializer_main_account: &Pubkey,
+    escrow_account: &Pubkey,
+    token_program: &Pubkey,
+    amount: u64,
+) -> Result<Instruction, ProgramError> {
+    let data = EscrowInstruction::Exchange { amount }.pack();
+    let accounts = vec![
+        AccountMeta::new(*taker, true),
+        AccountMeta::new(*taker_token_account, false),
+        AccountMeta::new(*taker_token_account2, false),
+        AccountMeta::new(*temp_token_account, false),
+        AccountMeta::new(*initializer_token_account, false),
+        AccountMeta::new(*initializer_main_account, false),
         AccountMeta::new(*escrow_account, false),
         AccountMeta::new_readonly(*token_program, false),
     ];
