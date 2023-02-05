@@ -11,7 +11,7 @@ pub enum EscrowInstruction {
     ///
     /// 0. `[signer]` The account of the person initializing the escrow
     /// 1. `[writable]` Temporary token account that should be created prior to this instruction and owned by the initializer
-    /// 2. `[]` The initializer's token account for the token they will receive should the trade go through
+    /// 2. `[writable]` The initializer's token account for the token they will receive should the trade go through
     /// 3. `[writable]` The escrow account, it will hold all necessary info about the trade.
     /// 4. `[]` The rent sysvar
     /// 5. `[]` The token program
@@ -37,6 +37,19 @@ pub enum EscrowInstruction {
         /// the amount the taker expects to be paid in the other token, as a u64 because that's the max possible supply of a token
         amount: u64,
     },
+    //Reset time_lock and time_out
+    /// 0. `[signer]` The initializer that is reseting the timelock
+    /// 1. `[writeable]` The escrow account holding the escrow info
+    ResetTimeLock {},
+    //Cancel Escrow
+    /// 0. `[signer]` The initializer canceling their escrow
+    /// 1. `[writable]` PDA temp token account
+    /// REMOVED. `[writable]` Initializer main account to send rent fees (same as signer, this can be deleted...)
+    /// 2. `[writable]` Initializer's token account to receive tokens (token account for the tokens they sent to escrow!)
+    /// 3. `[writable]` Escrow account holding the escrow info
+    /// 4. `[]` The token program
+    /// 5. `[]` The PDA account
+    Cancel {},
 }
 
 impl EscrowInstruction {
@@ -63,4 +76,51 @@ impl EscrowInstruction {
             .ok_or(InvalidInstruction)?;
         Ok(amount)
     }
+
+    fn pack(&self) -> Vec<u8> {
+        let mut buf: Vec<u8> = Vec::with_capacity(size_of::<Self>());
+        match &*self {
+            Self::InitEscrow { amount } => {
+                buf.push(0);
+                buf.extend_from_slice(&amount.to_le_bytes());
+            }
+            Self::Exchange { amount } => {
+                buf.push(1);
+                buf.extend_from_slice(&amount.to_le_bytes());
+            }
+            Self::ResetTimeLock {} => {
+                buf.push(2);
+            }
+            Self::Cancel {} => {
+                buf.push(3);
+            }
+        }
+        buf
+    }
 }
+
+pub fn init_escrow(
+    program_id: &Pubkey,
+    initiator: &Pubkey,
+    pda_temp_token_acct: &Pubkey,
+    init_token_acct: &Pubkey,
+    escrow_account: &Pubkey,
+    token_program: &Pubkey,
+    amount: u64,
+) -> Result<Instruction, ProgramError> {
+    let data = EscrowInstruction::InitEscrow { amount }.pack();
+    let accounts = vec![
+        AccountMeta::new(*initiator, true),
+        AccountMeta::new(*pda_temp_token_acct, false),
+        AccountMeta::new_readonly(*init_token_acct, false),
+        AccountMeta::new(*escrow_account, false),
+        AccountMeta::new_readonly(*token_program, false),
+    ];
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    })
+}
+
+//need helper functions for the new instructions
