@@ -39,7 +39,7 @@ What are the concepts (borrowing, ownership, vectors etc)?
     arrays, structs, enums, STD types (iterators/vec), referencing/borrowing, ownership, functions/arguements, error handling with "?"
 
 What is the organization?
-    - This code is organized first by bringing the crates into scope, defining the entrypoint, then creting the `pull_lever`
+    - This code is organized first by bringing the crates into scope, defining the entrypoint, then creating the `pull_lever`
     function. All the main logic is inside the pull_lever function, which is the entry point to the program. Aside from the program ID,
     this function takes in the accounts and instruction_data as well, and returns the ProgramResult Enum. Inside the function,
     the account_iter and accounts are assigned to variables, as well as the SetPowerStatus object which holds the instruction data.
