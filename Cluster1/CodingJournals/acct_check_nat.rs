@@ -71,12 +71,13 @@ fn process_instruction(
 //Code Journal Summary:
 
 What are the concepts (borrowing, ownership, vectors etc)?
-    - Bringing paths into scope with the `use` keyword, macro calls, variable declaration and mutability,
-    arrays, referencing/borrowing, ownership, control flow (with if statements)
+    - Bringing paths into scope with the `use` keyword (modules & namespaces), macro calls, variable declaration and mutability,
+    arrays, structs, iterators, constants, referencing/borrowing, ownership, control flow (with if statements), functions/arguements, methods,
+    and likely some others!
 
 What is the organization?
     - First thing we do is bring our needed crates (can be thought of as imports in other languages?) into scope.
-    Then we declare the program entry point to start program execution. After is the `process_instruction` function.
+    Then we declare the program entry point (process_instruction) to start program execution. After is the `process_instruction` function.
     We first pass in the inputs to the function and explicity define the return type, ProgramResult. We then verify
     the program ID is correct, make sure at least 4 accounts, and then iterate through the accounts and assign
     them to variables. Last step in terms of the organization in this function is making the necessary account checks
@@ -91,7 +92,7 @@ What is the contract doing? What is the mechanism?
     The account to be changed has a check to make sure it has already been initialized previously by checking to make sure it contains
     some amount of lamports. We also learned from the token program that we can only debit accounts that the program owns, so we also
     have a check to make sure the program_id matches the account to change owner. The last check makes sure the system program account
-    is indeed correct (we check by making sure IDs match).
+    is indeed correct (we check by making sure IDs match). If all checks pass, it return OK(). If not, it returns the corresponding error.
 
 How could it be better? More efficient? Safer?
     - One huge thing popped out to me. This doesn't utilize the Rust concept of ownership and
@@ -106,5 +107,8 @@ How could it be better? More efficient? Safer?
     Another change we can do to make this more efficient is bundle the logic for checking the `IncorrectProgramID`
     into one logical conditional check. It is inefficient to have to go through 3 separate conditionals to check for the
     same error. We can put it into one conditional, where that conditional checks all the cases of `IncorrectProgramID`.
+
+    I'm also thinking there might be a way to make the iteration of accounts more efficient? Possibly by using some built in
+    destructuring which could destructure the accounts in a faster way that iteration?
 
 */
